@@ -168,7 +168,7 @@ git push origin main
 ```bash
 # Lambda関数のビルド
 cd app/func/vuln-scanner && bun run build
-cd ../vuln-scanner-actions && bun run build
+cd app/func/vuln-scanner-actions && bun run build
 
 # デプロイ
 aws lambda update-function-code \
