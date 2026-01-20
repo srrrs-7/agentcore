@@ -4,21 +4,9 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Deployment environment"
-        required: true
-        default: "dev"
-        type: choice
-        options:
-          - dev
-          - prd
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,11 +16,8 @@ env:
   AWS_REGION: ap-northeast-1
 
 jobs:
-  # =============================================================================
-  # CI Job
-  # =============================================================================
   ci:
-    name: CI (Lint, Type Check, Test)
+    name: CI
     runs-on: ubuntu-latest
 
     steps:
@@ -63,28 +48,17 @@ jobs:
       - name: Run tests
         run: bun run test:run
 
-  # =============================================================================
-  # Deploy Lambda Functions
-  # =============================================================================
   deploy:
-    name: Deploy (${{ github.event_name == 'push' && 'dev' || inputs.environment }})
+    name: Deploy
     needs: ci
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
+    environment: dev
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Validate branch for prd deployment
-        if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prd'
-        run: |
-          if [[ "${{ github.ref_name }}" != "main" ]]; then
-            echo "::error::Production deployment is only allowed from 'main' branch."
-            exit 1
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -108,29 +82,23 @@ jobs:
           cd ../vuln-scanner-actions && bun run build
 
       - name: Deploy vuln-scanner handler
-        env:
-          ENV: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
         run: |
           cd app/func/vuln-scanner/dist
           zip -r ../handler.zip .
           aws lambda update-function-code \
-            --function-name vuln-scanner-${ENV}-handler \
+            --function-name vuln-scanner-dev-handler \
             --zip-file fileb://../handler.zip
 
       - name: Deploy vuln-scanner actions
-        env:
-          ENV: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
         run: |
           cd app/func/vuln-scanner-actions/dist
           zip -r ../actions.zip .
           aws lambda update-function-code \
-            --function-name vuln-scanner-${ENV}-actions \
+            --function-name vuln-scanner-dev-actions \
             --zip-file fileb://../actions.zip
 
       - name: Deployment summary
-        env:
-          ENV: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
         run: |
           echo "## Lambda Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${ENV}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: dev" >> $GITHUB_STEP_SUMMARY
           echo "- **Functions**: vuln-scanner-handler, vuln-scanner-actions" >> $GITHUB_STEP_SUMMARY
