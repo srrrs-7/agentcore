@@ -340,3 +340,62 @@ jobs:
           echo "- **Image Tag**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **ECS Cluster**: ${{ vars.ECS_CLUSTER_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo "- **ECS Service**: ${{ vars.ECS_SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # Deploy Lambda Functions - vuln-scanner
+  # Dependency: ci -> setup -> deploy-lambda
+  # =============================================================================
+  deploy-lambda:
+    name: Deploy Lambda (${{ needs.setup.outputs.environment }})
+    needs: setup
+    if: needs.setup.outputs.deploy_backend == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Lambda functions
+        run: |
+          cd app/func/vuln-scanner && bun run build
+          cd ../vuln-scanner-actions && bun run build
+
+      - name: Package and deploy vuln-scanner handler
+        run: |
+          cd app/func/vuln-scanner/dist
+          zip -r ../handler.zip .
+          aws lambda update-function-code \
+            --function-name vuln-scanner-${{ needs.setup.outputs.environment }}-handler \
+            --zip-file fileb://../handler.zip
+
+      - name: Package and deploy vuln-scanner actions
+        run: |
+          cd app/func/vuln-scanner-actions/dist
+          zip -r ../actions.zip .
+          aws lambda update-function-code \
+            --function-name vuln-scanner-${{ needs.setup.outputs.environment }}-actions \
+            --zip-file fileb://../actions.zip
+
+      - name: Lambda deployment summary
+        run: |
+          echo "## Lambda Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Functions**: vuln-scanner-handler, vuln-scanner-actions" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,5 @@
+[install]
+# minimumReleaseAge = 1814400 # 21 days - disabled for now
+
+# [install.security]
+# scanner = "@bun-security-scanner/osv"

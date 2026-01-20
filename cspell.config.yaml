@@ -8,7 +8,12 @@ ignorePaths:
 dictionaryDefinitions: []
 dictionaries: []
 words:
+  - Agentcore
   - anthropics
+  - basestring
+  - hmac
+  - vulns
+  - xoxb
   - apigatewayv
   - auggie
   - Auggie
@@ -31,10 +36,11 @@ words:
   - elif
   - émojis
   - Entra
-  - Español
   - esac
+  - Español
   - evenodd
   - fabbrica
+  - fileb
   - fdisk
   - gdisk
   - Groot
