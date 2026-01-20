@@ -1,0 +1,12 @@
+
+services:
+  dev:
+    build:
+      context: ../
+      dockerfile: .devcontainer/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ..:/workspace/main:cached
+    command: sleep infinity

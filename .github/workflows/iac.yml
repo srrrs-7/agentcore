@@ -1,0 +1,283 @@
+name: Infrastructure as Code
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prd
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+# Only one IaC deployment at a time per environment
+concurrency:
+  group: iac-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-1
+  TF_VERSION: '1.9.8'
+  WORKING_DIR: apps/iac/environments
+
+jobs:
+  # =============================================================================
+  # Validate - Branch and action restrictions
+  # =============================================================================
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ github.event.inputs.environment }}
+      action: ${{ github.event.inputs.action }}
+    steps:
+      - name: Validate branch
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" != "main" && "$BRANCH" != "develop" ]]; then
+            echo "::error::IaC deployment is only allowed from 'main' or 'develop' branches. Current branch: $BRANCH"
+            exit 1
+          fi
+
+      - name: Validate prd deployment branch
+        if: github.event.inputs.environment == 'prd'
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" != "main" ]]; then
+            echo "::error::Production IaC deployment is only allowed from 'main' branch. Current branch: $BRANCH"
+            exit 1
+          fi
+
+      - name: Validate destroy action
+        if: github.event.inputs.action == 'destroy'
+        run: |
+          echo "::warning::DESTROY action requested for ${{ github.event.inputs.environment }} environment"
+          if [[ "${{ github.event.inputs.environment }}" == "prd" ]]; then
+            echo "::error::DESTROY action is not allowed for production environment via workflow"
+            exit 1
+          fi
+
+      - name: Summary
+        run: |
+          echo "## IaC Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Action | ${{ github.event.inputs.action }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # Terraform Plan
+  # =============================================================================
+  plan:
+    name: Terraform Plan
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ needs.validate.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    outputs:
+      plan_exit_code: ${{ steps.plan.outputs.exitcode }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform init
+
+      - name: Terraform Format Check
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: |
+          if [[ "${{ needs.validate.outputs.action }}" == "destroy" ]]; then
+            terraform plan -destroy -detailed-exitcode -out=tfplan \
+              -var="domain_name=${{ vars.DOMAIN_NAME }}" \
+              -var="app_domain_name=${{ vars.APP_DOMAIN_NAME }}" \
+              -var="db_username=${{ secrets.DB_USERNAME }}" \
+              -var="db_password=${{ secrets.DB_PASSWORD }}" \
+              -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
+              -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+          else
+            terraform plan -detailed-exitcode -out=tfplan \
+              -var="domain_name=${{ vars.DOMAIN_NAME }}" \
+              -var="app_domain_name=${{ vars.APP_DOMAIN_NAME }}" \
+              -var="db_username=${{ secrets.DB_USERNAME }}" \
+              -var="db_password=${{ secrets.DB_PASSWORD }}" \
+              -var="google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" \
+              -var="google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+          fi
+        continue-on-error: true
+
+      - name: Check Plan Result
+        run: |
+          EXIT_CODE=${{ steps.plan.outputs.exitcode }}
+          if [[ "$EXIT_CODE" == "0" ]]; then
+            echo "No changes detected"
+          elif [[ "$EXIT_CODE" == "1" ]]; then
+            echo "::error::Terraform plan failed"
+            exit 1
+          elif [[ "$EXIT_CODE" == "2" ]]; then
+            echo "Changes detected"
+          fi
+
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ needs.validate.outputs.environment }}
+          path: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}/tfplan
+          retention-days: 1
+
+      - name: Plan Summary
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: |
+          echo "## Terraform Plan Output" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          terraform show -no-color tfplan >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No plan to show"
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # Terraform Apply (requires plan to have changes)
+  # =============================================================================
+  apply:
+    name: Terraform Apply
+    needs: [validate, plan]
+    if: needs.validate.outputs.action == 'apply' && needs.plan.outputs.plan_exit_code == '2'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.validate.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform init
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ needs.validate.outputs.environment }}
+          path: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+
+      - name: Terraform Apply
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Apply Summary
+        if: always()
+        run: |
+          echo "## Terraform Apply Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ needs.validate.outputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Applied by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # Terraform Destroy (dev only, requires explicit action)
+  # =============================================================================
+  destroy:
+    name: Terraform Destroy
+    needs: [validate, plan]
+    if: needs.validate.outputs.action == 'destroy' && needs.plan.outputs.plan_exit_code == '2'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.validate.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform init
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ needs.validate.outputs.environment }}
+          path: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.WORKING_DIR }}/${{ needs.validate.outputs.environment }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Destroy Summary
+        if: always()
+        run: |
+          echo "## Terraform Destroy Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **RESOURCES DESTROYED**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ needs.validate.outputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Destroyed by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
