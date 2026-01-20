@@ -8,90 +8,96 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 bun install
 
-# Run all workspace tests
-bun run test:run
-
-# Type checking across all workspaces
-bun run check:type
-
 # Full check (spell check + type check + biome lint)
 bun run check
+
+# Run all workspace tests
+bun run test:run
 
 # Format code
 bun run format
 
-# Lint and auto-fix with Biome
-bun run check:biome
-
-# Spell check
-bun run check:spell
-
-# Run tests in a specific package (uses workspace filtering)
-bun run --filter @packages/logger test
-
-# Type check in specific package (uses tsgo)
-cd packages/logger && bun run check:type
+# Build Lambda functions
+cd app/func/vuln-scanner && bun run build
+cd app/func/vuln-scanner-actions && bun run build
 ```
 
 ## Architecture Overview
 
-This is a Bun-based monorepo (`play-agentcore`) structured as:
+Bun-based monorepo for a Slack-integrated vulnerability scanner using AWS Bedrock Agents.
 
-- **`packages/`** - Shared libraries consumed across apps
-  - `logger/` - Pino-based logger with AsyncLocalStorage for request ID tracking
-- **`app/`** - Application deployments (not workspace packages)
-  - `ui/line/`, `ui/slack/` - Frontend UI applications
-  - `func/` - Serverless functions
-  - `iac/` - Terraform infrastructure code (environments/dev, modules/)
+```
+┌─────────┐      ┌──────────────────┐      ┌─────────────────┐
+│  Slack  │─────▶│  Lambda          │─────▶│  Bedrock Agent  │
+│  App    │◀─────│  (vuln-scanner)  │◀─────│  (Claude Haiku) │
+└─────────┘      └──────────────────┘      └─────────────────┘
+                                                    │
+                                           ┌────────┴────────┐
+                                           ▼                 ▼
+                                    ┌────────────┐    ┌────────────┐
+                                    │ NVD API    │    │ OSV API    │
+                                    │ (CVE検索)  │    │ (Pkg検索)  │
+                                    └────────────┘    └────────────┘
+```
 
-### Workspace Configuration
+### Directory Structure
 
-- Package manager: **Bun 1.3.5** (specified in `packageManager` field)
-- Workspaces: `apps/*` and `packages/*`
-- TypeScript packages use source directly (no build step) via `exports` field pointing to `.ts` files
+- **`packages/`** - Shared libraries (workspace packages)
+  - `logger/` - Pino logger with AsyncLocalStorage for request ID tracking
+- **`app/func/`** - Lambda functions
+  - `vuln-scanner/` - Slack event handler, calls Bedrock Agent
+  - `vuln-scanner-actions/` - Bedrock Agent action groups (NVD/OSV API calls)
+- **`app/iac/`** - Terraform infrastructure
+  - `modules/vuln-scanner/` - Lambda, Bedrock Agent, IAM, SSM
+  - `environments/dev/` - Dev environment configuration
 
-### Key Tools
+### Key Design Decisions
 
-- **Biome** - Linting and formatting (space indentation, tailwind directives support)
-- **cspell** - Spell checking
-- **Husky** - Pre-commit hooks run `bun check` and `bun test:run`
-- **tsgo** - Native TypeScript type checking (`@typescript/native-preview`)
+- **No API Gateway** - Lambda Function URL (free)
+- **No Secrets Manager** - Parameter Store SecureString (free tier)
+- **No NAT Gateway** - Public subnet, no VPC for Lambda
+- **ARM64 runtime** - 20% cost reduction
+- **Claude 3 Haiku** - Low cost model for Bedrock Agent
 
 ## Code Conventions
 
 ### Logger Usage
 
-The shared logger package uses `AsyncLocalStorage` to automatically attach request IDs:
-
 ```typescript
 import { logger, runWithRequestId } from "@packages/logger";
 
 await runWithRequestId(requestId, async () => {
-  logger.info({ data }, "message"); // requestId auto-attached
+  logger.info({ event: "action_name", data }, "message");
 });
 ```
 
-### Database (Prisma)
-
-When database packages are added (per the database skill):
-- Schema location: `packages/db/prisma/schema.prisma`
-- Use snake_case for columns with `@map` directives
-- Use camelCase for Prisma field names
-- Always include `createdAt` and `updatedAt` fields
-- Commands: `bun run db:generate`, `bun run db:migrate:dev`, `bun run db:migrate:deploy`
-
 ### Biome Rules
 
-- `noFloatingPromises: error` - All promises must be awaited or explicitly handled
-- Space indentation (better for code generation)
-- Tailwind CSS directives supported
+- `noFloatingPromises: error` - Use `void` for intentional fire-and-forget
+- Space indentation
 
-## Git Worktree Workflow
+### Lambda Build
 
-For parallel development using worktrees:
+Functions use esbuild bundling:
+```bash
+bun run build  # outputs to dist/index.mjs
+```
+
+## Infrastructure
+
+### Deploy (via GitHub Actions)
+
+Push to `main` triggers CI → Deploy to dev environment.
+
+### Manual Terraform
 
 ```bash
-make wt              # Create worktree from origin/main at ../wt_1
-make wt-d            # Remove worktree
-make wt-l            # List worktrees and branches
+cd app/iac/environments/dev
+terraform init
+terraform apply
 ```
+
+### Required Secrets (Parameter Store)
+
+- `/vuln-scanner/slack-signing-secret`
+- `/vuln-scanner/slack-bot-token`
