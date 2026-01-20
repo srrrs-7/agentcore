@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { logger, runWithRequestId } from "@packages/logger";
 import { searchCve } from "./actions/search-cve.js";
 import { searchPackage } from "./actions/search-package.js";
@@ -32,7 +33,7 @@ const getParameter = (
 export const handler = async (
   event: BedrockAgentEvent,
 ): Promise<BedrockAgentResponse> => {
-  const requestId = event.sessionId || crypto.randomUUID();
+  const requestId = event.sessionId || randomUUID();
 
   return runWithRequestId(requestId, async () => {
     logger.info({

@@ -9,13 +9,7 @@
   "packageManager": "bun@1.3.5",
   "scripts": {
     "test:run": "bun run --workspaces test",
-    "clean": "bun --workspaces clean",
-    "clean:api": "bun run --filter api clean",
-    "clean:web": "bun run --filter web clean",
     "check:type": "bun --workspaces check:type",
-    "build:ws": "bun run --workspaces build",
-    "build:api": "cd apps/api && bun run build",
-    "build:web": "cd apps/web && bun run build",
     "format": "biome format --write",
     "check": "bun run check:spell && bun run check:type && bun run check:biome",
     "check:biome": "biome check --write",

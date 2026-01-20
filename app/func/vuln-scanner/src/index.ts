@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { logger, runWithRequestId } from "@packages/logger";
 import type {
   APIGatewayProxyEventV2,
@@ -38,7 +39,7 @@ const postToSlack = async (
 export const handler = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const requestId = event.requestContext?.requestId || crypto.randomUUID();
+  const requestId = event.requestContext?.requestId || randomUUID();
 
   return runWithRequestId(requestId, async () => {
     logger.info({
