@@ -12,25 +12,14 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: "Deployment environment"
         required: true
-        default: 'dev'
+        default: "dev"
         type: choice
         options:
           - dev
           - prd
-      deploy_frontend:
-        description: 'Deploy frontend'
-        required: true
-        default: true
-        type: boolean
-      deploy_backend:
-        description: 'Deploy backend'
-        required: true
-        default: true
-        type: boolean
 
-# Cancel in-progress runs for the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -40,25 +29,20 @@ env:
 
 jobs:
   # =============================================================================
-  # CI Job - Runs on all triggers
+  # CI Job
   # =============================================================================
   ci:
-    name: CI (Lint, Type Check, Build, Test)
+    name: CI (Lint, Type Check, Test)
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          bun-version: latest
 
       - name: Cache Bun dependencies
         uses: actions/cache@v4
@@ -70,292 +54,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      - name: Setup devcontainer compose override
-        run: cp .devcontainer/compose.override.yaml.sample .devcontainer/compose.override.yaml
+      - name: Install dependencies
+        run: bun install
 
-      - name: Run CI in devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          imageName: ghcr.io/${{ github.repository }}/devcontainer
-          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
-          push: always
-          runCmd: |
-            bun ci
-            bun run db:generate
-            bun run db:migrate:deploy
-            bun run check
-            bun run build:ws
-            bun run test:run
+      - name: Run checks
+        run: bun run check
+
+      - name: Run tests
+        run: bun run test:run
 
   # =============================================================================
-  # Setup Job - Determines deployment environment and flags
-  # Push to main/develop: auto deploy to dev (frontend + backend)
-  # Workflow dispatch: use input parameters (main/develop branches only)
-  # Branch restrictions:
-  #   - workflow_dispatch: main/develop only
-  #   - prd deployment: main branch only
+  # Deploy Lambda Functions
   # =============================================================================
-  setup:
-    name: Setup
+  deploy:
+    name: Deploy (${{ github.event_name == 'push' && 'dev' || inputs.environment }})
     needs: ci
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
-      deploy_frontend: ${{ github.event_name == 'push' || inputs.deploy_frontend }}
-      deploy_backend: ${{ github.event_name == 'push' || inputs.deploy_backend }}
-    steps:
-      - name: Validate branch for workflow_dispatch
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          BRANCH="${{ github.ref_name }}"
-          if [[ "$BRANCH" != "main" && "$BRANCH" != "develop" ]]; then
-            echo "::error::Deployment is only allowed from 'main' or 'develop' branches. Current branch: $BRANCH"
-            exit 1
-          fi
+    environment: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
 
+    steps:
       - name: Validate branch for prd deployment
         if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prd'
         run: |
-          BRANCH="${{ github.ref_name }}"
-          if [[ "$BRANCH" != "main" ]]; then
-            echo "::error::Production deployment is only allowed from 'main' branch. Current branch: $BRANCH"
+          if [[ "${{ github.ref_name }}" != "main" ]]; then
+            echo "::error::Production deployment is only allowed from 'main' branch."
             exit 1
           fi
 
-      - name: Summary
-        run: echo "Deploying to ${{ github.event_name == 'push' && 'dev' || inputs.environment }}"
-
-  # =============================================================================
-  # Deploy Frontend - Parameterized by environment
-  # Dependency: ci -> setup -> deploy-frontend
-  # =============================================================================
-  deploy-frontend:
-    name: Deploy Frontend (${{ needs.setup.outputs.environment }})
-    needs: setup
-    if: needs.setup.outputs.deploy_frontend == 'true'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun ci
-
-      - name: Build frontend
-        run: bun run build:web
-        env:
-          BUN_PUBLIC_API_URL: ${{ vars.API_URL }}
-          BUN_PUBLIC_COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
-          BUN_PUBLIC_COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
-          BUN_PUBLIC_COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
-
-      - name: Deploy frontend to S3
-        run: |
-          echo "Deploying to S3 bucket: ${{ vars.S3_BUCKET_NAME }}"
-
-          # Deploy static assets with long cache
-          aws s3 sync apps/web/dist/ s3://${{ vars.S3_BUCKET_NAME }}/ \
-            --delete \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "index.html" \
-            --exclude "*.json"
-
-          # Deploy index.html with no-cache
-          aws s3 cp apps/web/dist/index.html s3://${{ vars.S3_BUCKET_NAME }}/index.html \
-            --cache-control "no-cache, no-store, must-revalidate"
-
-          # Deploy JSON files with no-cache
-          aws s3 sync apps/web/dist/ s3://${{ vars.S3_BUCKET_NAME }}/ \
-            --exclude "*" \
-            --include "*.json" \
-            --cache-control "no-cache, no-store, must-revalidate"
-
-      - name: Invalidate CloudFront cache
-        run: |
-          echo "Invalidating CloudFront distribution: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*"
-
-      - name: Frontend deployment summary
-        run: |
-          echo "## Frontend Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **S3 Bucket**: ${{ vars.S3_BUCKET_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **CloudFront**: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" >> $GITHUB_STEP_SUMMARY
-
-  # =============================================================================
-  # DB Migration - Parameterized by environment
-  # Dependency: ci -> setup -> db-migrate
-  # =============================================================================
-  db-migrate:
-    name: DB Migration (${{ needs.setup.outputs.environment }})
-    needs: setup
-    if: needs.setup.outputs.deploy_backend == 'true'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Run database migration via ECS task
-        id: run-migration
-        run: |
-          echo "Running migration on cluster: ${{ vars.ECS_CLUSTER_NAME }}"
-          echo "Using task definition: ${{ vars.ECS_TASK_DEFINITION }}"
-
-          TASK_ARN=$(aws ecs run-task \
-            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
-            --task-definition ${{ vars.ECS_TASK_DEFINITION }} \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=${{ vars.PRIVATE_SUBNET_IDS }},securityGroups=[${{ vars.ECS_SECURITY_GROUP_ID }}],assignPublicIp=DISABLED}" \
-            --overrides '{"containerOverrides":[{"name":"api","command":["bun","run","db:migrate:deploy"]}]}' \
-            --query 'tasks[0].taskArn' \
-            --output text)
-
-          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "Migration task started: $TASK_ARN"
-
-      - name: Wait for migration to complete
-        run: |
-          echo "Waiting for migration task to complete..."
-          aws ecs wait tasks-stopped \
-            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
-            --tasks ${{ steps.run-migration.outputs.task_arn }}
-
-      - name: Check migration result
-        run: |
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
-            --tasks ${{ steps.run-migration.outputs.task_arn }} \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "::error::Migration failed with exit code: $EXIT_CODE"
-            REASON=$(aws ecs describe-tasks \
-              --cluster ${{ vars.ECS_CLUSTER_NAME }} \
-              --tasks ${{ steps.run-migration.outputs.task_arn }} \
-              --query 'tasks[0].containers[0].reason' \
-              --output text)
-            echo "::error::Reason: $REASON"
-            exit 1
-          fi
-
-          echo "Migration completed successfully"
-          echo "## DB Migration Complete" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Task ARN**: ${{ steps.run-migration.outputs.task_arn }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Exit Code**: $EXIT_CODE" >> $GITHUB_STEP_SUMMARY
-
-  # =============================================================================
-  # Deploy Backend - Parameterized by environment
-  # Dependency: ci -> setup -> db-migrate -> deploy-backend
-  # =============================================================================
-  deploy-backend:
-    name: Deploy Backend (${{ needs.setup.outputs.environment }})
-    needs: [setup, db-migrate]
-    if: needs.setup.outputs.deploy_backend == 'true'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push API image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          echo "Building image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            -f apps/api/.images/Dockerfile \
-            .
-
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Update ECS service
-        run: |
-          echo "Updating ECS service: ${{ vars.ECS_SERVICE_NAME }}"
-          aws ecs update-service \
-            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
-            --service ${{ vars.ECS_SERVICE_NAME }} \
-            --force-new-deployment
-
-      - name: Wait for ECS deployment
-        run: |
-          echo "Waiting for ECS service to stabilize..."
-          aws ecs wait services-stable \
-            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
-            --services ${{ vars.ECS_SERVICE_NAME }}
-
-      - name: Backend deployment summary
-        run: |
-          echo "## Backend Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image Tag**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **ECS Cluster**: ${{ vars.ECS_CLUSTER_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **ECS Service**: ${{ vars.ECS_SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
-
-  # =============================================================================
-  # Deploy Lambda Functions - vuln-scanner
-  # Dependency: ci -> setup -> deploy-lambda
-  # =============================================================================
-  deploy-lambda:
-    name: Deploy Lambda (${{ needs.setup.outputs.environment }})
-    needs: setup
-    if: needs.setup.outputs.deploy_backend == 'true'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -378,24 +107,30 @@ jobs:
           cd app/func/vuln-scanner && bun run build
           cd ../vuln-scanner-actions && bun run build
 
-      - name: Package and deploy vuln-scanner handler
+      - name: Deploy vuln-scanner handler
+        env:
+          ENV: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
         run: |
           cd app/func/vuln-scanner/dist
           zip -r ../handler.zip .
           aws lambda update-function-code \
-            --function-name vuln-scanner-${{ needs.setup.outputs.environment }}-handler \
+            --function-name vuln-scanner-${ENV}-handler \
             --zip-file fileb://../handler.zip
 
-      - name: Package and deploy vuln-scanner actions
+      - name: Deploy vuln-scanner actions
+        env:
+          ENV: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
         run: |
           cd app/func/vuln-scanner-actions/dist
           zip -r ../actions.zip .
           aws lambda update-function-code \
-            --function-name vuln-scanner-${{ needs.setup.outputs.environment }}-actions \
+            --function-name vuln-scanner-${ENV}-actions \
             --zip-file fileb://../actions.zip
 
-      - name: Lambda deployment summary
+      - name: Deployment summary
+        env:
+          ENV: ${{ github.event_name == 'push' && 'dev' || inputs.environment }}
         run: |
           echo "## Lambda Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${ENV}" >> $GITHUB_STEP_SUMMARY
           echo "- **Functions**: vuln-scanner-handler, vuln-scanner-actions" >> $GITHUB_STEP_SUMMARY
