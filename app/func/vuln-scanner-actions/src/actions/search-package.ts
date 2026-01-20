@@ -96,7 +96,7 @@ export const searchPackage = async (
     };
   }
 
-  const data: OsvQueryResponse = await response.json();
+  const data = (await response.json()) as OsvQueryResponse;
 
   if (!data.vulns || data.vulns.length === 0) {
     logger.info({ event: "osv_api_no_results", packageName });

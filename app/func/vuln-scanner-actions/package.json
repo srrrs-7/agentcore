@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --outfile=dist/index.mjs --format=esm",
+    "build": "bun build src/index.ts --outdir=dist --target=node --format=esm",
     "check:type": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

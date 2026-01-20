@@ -35,7 +35,7 @@ export const searchCve = async (
     return null;
   }
 
-  const data: NvdCveResponse = await response.json();
+  const data = (await response.json()) as NvdCveResponse;
 
   if (data.totalResults === 0 || !data.vulnerabilities[0]) {
     logger.info({ event: "nvd_api_no_results", cveId });

@@ -3,11 +3,11 @@ import pino from "pino";
 
 const asyncLocalStorage = new AsyncLocalStorage<{ requestId: string }>();
 
-export const runWithRequestId = async (
+export const runWithRequestId = async <T>(
   requestId: string,
-  fn: () => Promise<void>,
-) => {
-  await asyncLocalStorage.run({ requestId }, fn);
+  fn: () => Promise<T>,
+): Promise<T> => {
+  return asyncLocalStorage.run({ requestId }, fn);
 };
 
 export const logger = pino({
