@@ -26,6 +26,6 @@
   },
   "devDependencies": {
     "@bun-security-scanner/osv": "^1.0.0",
-    "@typescript/native-preview": "^7.0.0-dev.20251226.1"
+    "@typescript/native-preview": "^7.0.0-dev.20260124.1"
   }
 }
