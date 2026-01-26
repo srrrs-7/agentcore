@@ -10,7 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agent-runtime": "^3.750.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.975.0",
     "@aws-sdk/client-ssm": "^3.750.0",
     "@packages/logger": "workspace:*"
   },
