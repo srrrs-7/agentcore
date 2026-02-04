@@ -17,87 +17,215 @@ bun run test:run
 # Format code
 bun run format
 
-# Build Lambda functions
-cd app/func/vuln-scanner && bun run build
-cd app/func/vuln-scanner-actions && bun run build
+# Build Strands Agents Lambda functions
+cd app/api/strands-agents-handler && bun run build
+cd app/api/strands-agents-actions && bun run build
+
+# Start frontend dev server
+cd app/ui/strands-agents && bun run dev
 ```
 
 ## Architecture Overview
 
-Bun-based monorepo for a Slack-integrated vulnerability scanner using AWS Bedrock Agents.
+Bun-based monorepo for a streaming chat assistant using AWS Bedrock Agents with Server-Sent Events (SSE).
 
 ```
-┌─────────┐      ┌──────────────────┐      ┌─────────────────┐
-│  Slack  │─────▶│  Lambda          │─────▶│  Bedrock Agent  │
-│  App    │◀─────│  (vuln-scanner)  │◀─────│  (Claude Haiku) │
-└─────────┘      └──────────────────┘      └─────────────────┘
-                                                    │
-                                           ┌────────┴────────┐
-                                           ▼                 ▼
-                                    ┌────────────┐    ┌────────────┐
-                                    │ NVD API    │    │ OSV API    │
-                                    │ (CVE検索)  │    │ (Pkg検索)  │
-                                    └────────────┘    └────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────┐
+│  React + Vite   │     │  API Gateway    │     │     Bedrock Agent       │
+│  SPA Frontend   │────▶│  HTTP API v2    │────▶│     (Claude Haiku)      │
+│                 │◀────│  (SSE Stream)   │◀────│                         │
+└─────────────────┘     └─────────────────┘     └───────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                               ┌─────────────────────────┐
+                                               │    Lambda Actions       │
+                                               │    (Multi-tool Router)  │
+                                               │                         │
+                                               │  ┌─────┐ ┌────┐ ┌────┐  │
+                                               │  │Calc │ │Time│ │Web │  │
+                                               │  └─────┘ └────┘ └────┘  │
+                                               └─────────────────────────┘
 ```
 
 ### Directory Structure
 
 - **`packages/`** - Shared libraries (workspace packages)
   - `logger/` - Pino logger with AsyncLocalStorage for request ID tracking
-- **`app/func/`** - Lambda functions
-  - `vuln-scanner/` - Slack event handler, calls Bedrock Agent
-  - `vuln-scanner-actions/` - Bedrock Agent action groups (NVD/OSV API calls)
+  - `sse-utils/` - SSE formatting utilities for streaming responses
+- **`app/api/`** - Lambda functions
+  - `strands-agents-handler/` - SSE streaming handler, invokes Bedrock Agent
+  - `strands-agents-actions/` - Multi-tool router (Calculator, DateTime, WebSearch)
+- **`app/ui/`** - Frontend applications
+  - `strands-agents/` - React + Vite SPA chat interface
 - **`app/iac/`** - Terraform infrastructure
-  - `modules/vuln-scanner/` - Lambda, Bedrock Agent, IAM, SSM
-  - `environments/dev/` - Dev environment configuration
+  - `modules/strands-agents/` - API Gateway, Lambda, Bedrock Agent, IAM
+  - `environments/strands-agents/` - Environment configuration
+
+### Request Flow
+
+1. **User Input** → Browser sends POST `/chat` with message
+2. **API Gateway** → HTTP API v2 routes to Handler Lambda
+3. **Handler Lambda** → Invokes Bedrock Agent with sessionId
+4. **Bedrock Agent** → Claude Haiku processes request, calls action groups as needed
+5. **Actions Lambda** → Executes tools (calculator, datetime, websearch)
+6. **SSE Response** → Handler streams chunks back through API Gateway to browser
 
 ### Key Design Decisions
 
-- **No API Gateway** - Lambda Function URL (free)
-- **No Secrets Manager** - Parameter Store SecureString (free tier)
-- **No NAT Gateway** - Public subnet, no VPC for Lambda
-- **ARM64 runtime** - 20% cost reduction
-- **Claude 3 Haiku** - Low cost model for Bedrock Agent
+- **API Gateway HTTP API v2** - Required for SSE streaming (not Lambda Function URL)
+- **SSE over WebSocket** - Simpler implementation for one-way streaming
+- **Parameter Store** - Cost-effective secrets management (free tier)
+- **ARM64 Lambda** - 20% cost reduction
+- **Claude 3 Haiku** - Cost-optimized model for chat assistant
+- **React + Vite SPA** - Fast development and production builds
 
 ## Code Conventions
 
 ### Logger Usage
 
+All Lambda functions use a shared logger with request ID tracking via AsyncLocalStorage:
+
 ```typescript
 import { logger, runWithRequestId } from "@packages/logger";
 
-await runWithRequestId(requestId, async () => {
-  logger.info({ event: "action_name", data }, "message");
-});
+export const handler = async (event) => {
+  const requestId = event.requestContext?.requestId || randomUUID();
+
+  return runWithRequestId(requestId, async () => {
+    logger.info({ event: "action_name", data }, "message");
+    // ... handler logic
+  });
+};
 ```
 
-### Biome Rules
+### SSE Utilities
 
-- `noFloatingPromises: error` - Use `void` for intentional fire-and-forget
-- Space indentation
+Use the `@packages/sse-utils` package for formatting SSE events:
 
-### Lambda Build
+```typescript
+import { formatSSE, SSEEventType } from "@packages/sse-utils";
 
-Functions use esbuild bundling:
+// Send a chunk
+responseStream.write(formatSSE({
+  event: SSEEventType.CHUNK,
+  data: { text: "Hello", chunkIndex: 0 },
+}));
+
+// Send completion
+responseStream.write(formatSSE({
+  event: SSEEventType.COMPLETE,
+  data: { sessionId, totalChunks },
+}));
+```
+
+### Workspace Package Management
+
+Bun workspace monorepo with shared packages referenced using `workspace:*`:
+
+```json
+{
+  "dependencies": {
+    "@packages/logger": "workspace:*",
+    "@packages/sse-utils": "workspace:*"
+  }
+}
+```
+
+Packages export TypeScript source directly (no build step needed) via the `exports` field.
+
+### Lambda Build Process
+
+Lambda functions use Bun's bundler:
+- **Format**: ESM (`--format=esm`)
+- **Target**: Node.js (`--target=node`)
+- **External**: `@aws-sdk/*` packages (provided by Lambda runtime)
+- **Output**: `dist/index.mjs`
+
 ```bash
-bun run build  # outputs to dist/index.mjs
+bun build src/index.ts --outdir=dist --target=node --format=esm --external '@aws-sdk/*'
 ```
 
 ## Infrastructure
 
-### Deploy (via GitHub Actions)
-
-Push to `main` triggers CI → Deploy to dev environment.
-
-### Manual Terraform
+### Deploy via Terraform
 
 ```bash
-cd app/iac/environments/dev
+# Build Lambda functions first
+cd app/api/strands-agents-handler && bun run build
+cd ../strands-agents-actions && bun run build
+
+# Deploy infrastructure
+cd app/iac/environments/strands-agents
 terraform init
 terraform apply
 ```
 
-### Required Secrets (Parameter Store)
+### Outputs
 
-- `/vuln-scanner/slack-signing-secret`
-- `/vuln-scanner/slack-bot-token`
+```bash
+terraform output api_endpoint           # API Gateway URL
+terraform output bedrock_agent_id       # Agent ID
+terraform output bedrock_agent_alias_id # Alias ID
+```
+
+### Environment Variables (Lambda)
+
+- `BEDROCK_AGENT_ID` - Bedrock Agent ID
+- `BEDROCK_AGENT_ALIAS_ID` - Bedrock Agent Alias ID
+- `LOG_LEVEL` - Log level (debug/info)
+
+## Bedrock Agent Action Groups
+
+The `strands-agents-actions` Lambda implements three action groups:
+
+### Calculator
+- **Path:** `/calculate` (POST)
+- **Input:** `{ "expression": "sqrt(144)" }`
+- **Uses:** mathjs for safe expression evaluation
+
+### DateTime
+- **Paths:**
+  - `/current-time` (GET) - Current time in specified timezone
+  - `/convert-timezone` (GET) - Convert between timezones
+- **Parameters:** `timezone`, `datetime`, `fromTimezone`, `toTimezone`
+
+### WebSearch
+- **Path:** `/search` (GET)
+- **Parameters:** `query`, `maxResults`
+- **Requires:** Tavily API key in Parameter Store (`/strands-agents/websearch-api-key`)
+
+## Frontend Development
+
+### Start Development Server
+
+```bash
+cd app/ui/strands-agents
+bun install
+bun run dev
+```
+
+### Environment Variables
+
+Create `.env` from `.env.example`:
+```bash
+VITE_API_ENDPOINT=https://xxxxxx.execute-api.ap-northeast-1.amazonaws.com
+```
+
+### Build for Production
+
+```bash
+bun run build
+```
+
+Output is in `dist/` directory, ready for static hosting (Vercel, Netlify, S3, etc.).
+
+## Cost Estimation
+
+Monthly cost for 1000 messages/day (~$25/month):
+- API Gateway HTTP API: ~$1
+- Lambda Handler (512MB × 10s): ~$5
+- Lambda Actions (256MB × 2s): ~$2
+- Bedrock Claude Haiku: ~$15
+- CloudWatch Logs: ~$2
+
+Budget alert configured at $20/month (80% threshold).

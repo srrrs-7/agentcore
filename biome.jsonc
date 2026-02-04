@@ -30,6 +30,16 @@
   },
   "overrides": [
     {
+      "includes": ["app/ui/strands-agents/src/index.css"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUnknownAtRules": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/storybook/**/*.stories.tsx"],
       "linter": {
         "rules": {

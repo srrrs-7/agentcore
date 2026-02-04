@@ -9,6 +9,8 @@ dictionaryDefinitions: []
 dictionaries: []
 words:
   - Agentcore
+  - HSTS
+  - WCAG
   - anthropics
   - basestring
   - hmac
@@ -42,8 +44,10 @@ words:
   - fabbrica
   - fileb
   - fdisk
+  - fieldsets
   - gdisk
   - Groot
+  - hotspots
   - hono
   - hostnames
   - ichiro
@@ -65,11 +69,15 @@ words:
   - neverthrow
   - nftables
   - npmjs
+  - oneline
   - pino
   - pipefail
   - PKCE
   - pkill
+  - popstate
   - POSTROUTING
+  - presign
+  - proddb
   - pycache
   - quramy
   - qwen
@@ -85,10 +93,12 @@ words:
   - tablename
   - tanaka
   - Tanaka
+  - Tavily
   - tfstate
   - tfvars
   - trixie
   - tsgo
+  - tvly
   - TXXX
   - uvx
   - venv

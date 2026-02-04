@@ -1,0 +1,29 @@
+{
+  "name": "@app/strands-agents-ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "check:type": "tsgo --noEmit",
+    "check:spell": "bun --cwd ../../.. run check:spell",
+    "check:biome": "bun --cwd ../../.. run check:biome",
+    "check": "bun run check:spell && bun run check:type && bun run check:biome"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}
