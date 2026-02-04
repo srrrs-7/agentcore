@@ -69,6 +69,7 @@ Thumbs.db
 # ===================
 coverage/
 .nyc_output/
+.vitest/
 
 # ===================
 # Cache
@@ -76,6 +77,19 @@ coverage/
 .cspellcache
 .cache/
 *.cache
+
+# ===================
+# Temporary Files
+# ===================
+*.tmp
+tmp/
+temp/
+
+# ===================
+# Archives
+# ===================
+*.zip
+*.tar.gz
 
 # ===================
 # Terraform (apps/iac)

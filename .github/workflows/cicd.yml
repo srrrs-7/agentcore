@@ -48,6 +48,15 @@ jobs:
       - name: Run tests
         run: bun run test:run
 
+      - name: Build Lambda functions
+        run: |
+          cd app/api/strands-agents-handler && bun run build
+          cd ../strands-agents-actions && bun run build
+
+      - name: Build UI
+        run: |
+          cd app/ui/strands-agents && bun run build
+
   deploy:
     name: Deploy
     needs: ci
@@ -78,27 +87,35 @@ jobs:
 
       - name: Build Lambda functions
         run: |
-          cd app/func/vuln-scanner && bun run build
-          cd ../vuln-scanner-actions && bun run build
+          cd app/api/strands-agents-handler && bun run build
+          cd ../strands-agents-actions && bun run build
 
-      - name: Deploy vuln-scanner handler
+      - name: Deploy strands-agents-handler
         run: |
-          cd app/func/vuln-scanner/dist
+          cd app/api/strands-agents-handler/dist
           zip -r ../handler.zip .
           aws lambda update-function-code \
-            --function-name vuln-scanner-dev-handler \
+            --function-name strands-agents-dev-handler \
             --zip-file fileb://../handler.zip
 
-      - name: Deploy vuln-scanner actions
+      - name: Deploy strands-agents-actions
         run: |
-          cd app/func/vuln-scanner-actions/dist
+          cd app/api/strands-agents-actions/dist
           zip -r ../actions.zip .
           aws lambda update-function-code \
-            --function-name vuln-scanner-dev-actions \
+            --function-name strands-agents-dev-actions \
             --zip-file fileb://../actions.zip
 
       - name: Deployment summary
         run: |
-          echo "## Lambda Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: dev" >> $GITHUB_STEP_SUMMARY
-          echo "- **Functions**: vuln-scanner-handler, vuln-scanner-actions" >> $GITHUB_STEP_SUMMARY
+          echo "## Lambda Deployment Complete 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | dev |" >> $GITHUB_STEP_SUMMARY
+          echo "| **strands-agents-handler** | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **strands-agents-actions** | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify via API Gateway endpoint" >> $GITHUB_STEP_SUMMARY
+          echo "- Check CloudWatch logs for errors" >> $GITHUB_STEP_SUMMARY

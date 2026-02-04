@@ -69,11 +69,11 @@ variable "websearch_api_key" {
 variable "handler_source_dir" {
   description = "Path to handler Lambda dist directory (relative to module)"
   type        = string
-  default     = "../../../../api/strands-agents-handler/dist"
+  default     = "../../../api/strands-agents-handler/dist"
 }
 
 variable "actions_source_dir" {
   description = "Path to actions Lambda dist directory (relative to module)"
   type        = string
-  default     = "../../../../api/strands-agents-actions/dist"
+  default     = "../../../api/strands-agents-actions/dist"
 }
