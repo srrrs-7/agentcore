@@ -177,6 +177,59 @@ terraform output bedrock_agent_id       # Agent ID
 terraform output bedrock_agent_alias_id # Alias ID
 ```
 
+### Destroy Infrastructure
+
+**Important**: Bedrock Agent Action Groups must be disabled before `terraform destroy`.
+
+```bash
+# 1. Get Agent ID and Action Group IDs
+AGENT_ID=$(terraform output -raw bedrock_agent_id)
+
+aws bedrock-agent list-agent-action-groups \
+  --agent-id $AGENT_ID \
+  --agent-version DRAFT \
+  --region ap-northeast-1
+
+# 2. Disable each Action Group (repeat for each)
+# Note: update-agent-action-group requires apiSchema, so use this script:
+for AG_ID in $(aws bedrock-agent list-agent-action-groups \
+  --agent-id $AGENT_ID --agent-version DRAFT --region ap-northeast-1 \
+  --query 'actionGroupSummaries[].actionGroupId' --output text); do
+
+  # Get current config
+  AG_INFO=$(aws bedrock-agent get-agent-action-group \
+    --agent-id $AGENT_ID --agent-version DRAFT \
+    --action-group-id $AG_ID --region ap-northeast-1)
+
+  AG_NAME=$(echo "$AG_INFO" | grep -o '"actionGroupName": "[^"]*"' | cut -d'"' -f4)
+  LAMBDA_ARN=$(echo "$AG_INFO" | grep -o '"lambda": "[^"]*"' | cut -d'"' -f4)
+  SCHEMA=$(echo "$AG_INFO" | grep -o '"payload": "[^"]*"' | cut -d'"' -f4)
+
+  # Create update JSON and disable
+  cat << EOF > /tmp/disable-ag.json
+{
+  "agentId": "$AGENT_ID",
+  "agentVersion": "DRAFT",
+  "actionGroupId": "$AG_ID",
+  "actionGroupName": "$AG_NAME",
+  "actionGroupState": "DISABLED",
+  "actionGroupExecutor": {"lambda": "$LAMBDA_ARN"},
+  "apiSchema": {"payload": "$SCHEMA"}
+}
+EOF
+
+  aws bedrock-agent update-agent-action-group \
+    --cli-input-json file:///tmp/disable-ag.json \
+    --region ap-northeast-1
+done
+
+# 3. Now destroy
+cd app/iac/environments/strands-agents
+terraform destroy
+```
+
+**Why?** AWS Bedrock Agent API returns `409 ConflictException` when trying to delete ENABLED Action Groups. The Terraform AWS Provider does not automatically disable them before deletion.
+
 ### Environment Variables (Lambda)
 
 - `BEDROCK_AGENT_ID` - Bedrock Agent ID
