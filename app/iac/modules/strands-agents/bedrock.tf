@@ -3,7 +3,7 @@ resource "aws_bedrockagent_agent" "main" {
   agent_name              = local.name_prefix
   description             = "General purpose chat assistant with multiple tools"
   agent_resource_role_arn = aws_iam_role.bedrock_agent.arn
-  foundation_model        = "anthropic.claude-3-haiku-20240307-v1:0"
+  foundation_model        = var.foundation_model
 
   idle_session_ttl_in_seconds = 1800 # 30 minutes
 
@@ -21,16 +21,12 @@ resource "aws_bedrockagent_agent" "main" {
     - Use tools proactively when they would help answer the user's question
     - Respond in the same language as the user's question
   EOT
-
-  tags = local.common_tags
 }
 
 # Agent Alias
 resource "aws_bedrockagent_agent_alias" "main" {
   agent_id         = aws_bedrockagent_agent.main.agent_id
   agent_alias_name = var.environment
-
-  tags = local.common_tags
 }
 
 # Action Group: Calculator
@@ -192,8 +188,8 @@ resource "aws_bedrockagent_agent_action_group" "datetime" {
                     schema = {
                       type = "object"
                       properties = {
-                        original  = { type = "string" }
-                        converted = { type = "string" }
+                        original     = { type = "string" }
+                        converted    = { type = "string" }
                         fromTimezone = { type = "string" }
                         toTimezone   = { type = "string" }
                       }

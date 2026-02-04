@@ -12,8 +12,6 @@ resource "aws_apigatewayv2_api" "main" {
     max_age           = 300
     allow_credentials = false
   }
-
-  tags = local.common_tags
 }
 
 # Lambda integration for handler
@@ -42,26 +40,22 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gateway.arn
     format = jsonencode({
-      requestId      = "$context.requestId"
-      ip             = "$context.identity.sourceIp"
-      requestTime    = "$context.requestTime"
-      httpMethod     = "$context.httpMethod"
-      routeKey       = "$context.routeKey"
-      status         = "$context.status"
-      responseLength = "$context.responseLength"
+      requestId          = "$context.requestId"
+      ip                 = "$context.identity.sourceIp"
+      requestTime        = "$context.requestTime"
+      httpMethod         = "$context.httpMethod"
+      routeKey           = "$context.routeKey"
+      status             = "$context.status"
+      responseLength     = "$context.responseLength"
       integrationLatency = "$context.integrationLatency"
     })
   }
-
-  tags = local.common_tags
 }
 
 # CloudWatch Log Group for API Gateway
 resource "aws_cloudwatch_log_group" "api_gateway" {
   name              = "/aws/apigateway/${local.name_prefix}"
   retention_in_days = var.log_retention_days
-
-  tags = local.common_tags
 }
 
 # Lambda permission for API Gateway

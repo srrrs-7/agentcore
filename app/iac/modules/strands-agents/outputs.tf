@@ -35,10 +35,10 @@ output "bedrock_agent_alias_id" {
 
 output "cloudwatch_log_group_handler" {
   description = "CloudWatch Log Group for Handler Lambda"
-  value       = aws_cloudwatch_log_group.handler.name
+  value       = aws_cloudwatch_log_group.lambda["handler"].name
 }
 
 output "cloudwatch_log_group_actions" {
   description = "CloudWatch Log Group for Actions Lambda"
-  value       = aws_cloudwatch_log_group.actions.name
+  value       = aws_cloudwatch_log_group.lambda["actions"].name
 }

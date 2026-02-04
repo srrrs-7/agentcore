@@ -1,13 +1,13 @@
 module "strands_agents" {
   source = "../../modules/strands-agents"
 
-  environment       = "strands-agents"
-  aws_region        = var.aws_region
-  allowed_origins   = var.allowed_origins
+  environment        = var.environment
+  aws_region         = var.aws_region
+  allowed_origins    = var.allowed_origins
   log_retention_days = 7
-  budget_limit_usd  = 20
-  alert_email       = var.alert_email
-  websearch_api_key = var.websearch_api_key
+  budget_limit_usd   = 20
+  alert_email        = var.alert_email
+  websearch_api_key  = var.websearch_api_key
 }
 
 output "api_endpoint" {

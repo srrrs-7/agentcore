@@ -26,23 +26,57 @@ aws logs tail /aws/lambda/strands-agents-strands-agents-actions --follow
 | API Gateway | `aws_apigatewayv2_api` | HTTP API v2 with SSE streaming |
 | Handler Lambda | `aws_lambda_function` | Invokes Bedrock Agent, streams response |
 | Actions Lambda | `aws_lambda_function` | Executes calculator/datetime/websearch tools |
-| Bedrock Agent | `aws_bedrockagent_agent` | Claude Haiku orchestration |
+| Bedrock Agent | `aws_bedrockagent_agent` | Amazon Nova Micro orchestration |
 | Action Groups | `aws_bedrockagent_agent_action_group` | OpenAPI schemas for tools |
 | IAM Roles | `aws_iam_role` | 3 roles (handler, actions, bedrock) |
 | CloudWatch | `aws_cloudwatch_log_group` | Lambda logs (7-day retention) |
 | Budget | `aws_budgets_budget` | $20/month cost alert |
+
+## Tag Management
+
+All resources are automatically tagged via AWS provider's `default_tags`:
+
+| Tag | Value | Description |
+|-----|-------|-------------|
+| `Project` | `strands-agents` | Project identifier for cost tracking |
+| `Environment` | `var.environment` | Environment name (dev/staging/prod) |
+| `ManagedBy` | `terraform` | Infrastructure management tool |
+
+### Adding Custom Tags
+
+Edit `terraform.tfvars` to add additional tags:
+
+```hcl
+tags = {
+  CostCenter = "engineering"
+  Owner      = "team-name"
+}
+```
+
+Tags are applied automatically to all AWS resources without explicit `tags` blocks in module resources.
 
 ## File Structure
 
 ```
 strands-agents/
 ├── main.tf                    # Module instantiation
-├── variables.tf               # Input variables
-├── provider.tf                # AWS provider config
+├── variables.tf               # Input variables (environment, tags, etc.)
+├── provider.tf                # AWS provider config with default_tags
 ├── terraform.tfvars.example   # Example configuration
 ├── README.md                  # Deployment guide
 └── CLAUDE.md                  # This file
 ```
+
+## Input Variables
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `environment` | string | `"dev"` | Environment name for naming/tagging |
+| `aws_region` | string | `"ap-northeast-1"` | AWS region |
+| `allowed_origins` | list(string) | `["*"]` | CORS allowed origins |
+| `alert_email` | string | `""` | Email for budget/error alerts |
+| `websearch_api_key` | string | `""` | Tavily API key (sensitive) |
+| `tags` | map(string) | `{}` | Additional tags for all resources |
 
 ## Common Operations
 

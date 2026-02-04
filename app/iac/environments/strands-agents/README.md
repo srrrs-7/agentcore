@@ -7,7 +7,7 @@ Streaming chat assistant powered by AWS Bedrock Agents with Server-Sent Events (
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────┐
 │  React + Vite   │     │  API Gateway    │     │     Bedrock Agent       │
-│  SPA Frontend   │────▶│  HTTP API v2    │────▶│     (Claude Haiku)      │
+│  SPA Frontend   │────▶│  HTTP API v2    │────▶│    (Amazon Nova Micro)  │
 │                 │◀────│  (SSE Stream)   │◀────│                         │
 └─────────────────┘     └─────────────────┘     └───────────┬─────────────┘
                                                             │
@@ -258,11 +258,18 @@ Monthly cost for 1000 messages/day:
 | API Gateway HTTP API | ~$1 |
 | Lambda Handler | ~$5 |
 | Lambda Actions | ~$2 |
-| Bedrock Claude Haiku | ~$15 |
+| Bedrock Amazon Nova Micro | ~$2 |
 | CloudWatch Logs | ~$2 |
-| **Total** | **~$25/month** |
+| **Total** | **~$12/month** |
 
 Budget alert is configured at $20/month (80% threshold).
+
+### Model Choice
+
+Using **Amazon Nova Micro** for optimal cost-performance:
+- Input: $0.035/1M tokens
+- Output: $0.14/1M tokens
+- ~85% cheaper than Claude 3 Haiku
 
 ## Monitoring
 

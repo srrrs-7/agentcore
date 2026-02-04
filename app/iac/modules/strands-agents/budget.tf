@@ -1,6 +1,6 @@
 # Monthly Budget for Strands Agents
 resource "aws_budgets_budget" "monthly" {
-  count = var.alert_email != "" ? 1 : 0
+  count = local.alerts_enabled ? 1 : 0
 
   name         = "${local.name_prefix}-monthly"
   budget_type  = "COST"
@@ -10,7 +10,7 @@ resource "aws_budgets_budget" "monthly" {
 
   cost_filter {
     name   = "TagKeyValue"
-    values = ["user:Project$strands-agents"]
+    values = [local.budget_tag_filter]
   }
 
   notification {
@@ -28,6 +28,4 @@ resource "aws_budgets_budget" "monthly" {
     notification_type          = "ACTUAL"
     subscriber_email_addresses = [var.alert_email]
   }
-
-  tags = local.common_tags
 }

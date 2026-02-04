@@ -3,7 +3,7 @@ resource "aws_lambda_function" "handler" {
   function_name = "${local.name_prefix}-handler"
   description   = "Streaming chat handler for Strands Agents"
 
-  runtime       = "nodejs22.x"
+  runtime       = "nodejs24.x"
   architectures = ["arm64"]
   handler       = "index.handler"
   memory_size   = 512
@@ -16,17 +16,15 @@ resource "aws_lambda_function" "handler" {
 
   environment {
     variables = {
-      BEDROCK_AGENT_ID       = aws_bedrockagent_agent.main.agent_id
-      BEDROCK_AGENT_ALIAS_ID = aws_bedrockagent_agent_alias.main.agent_alias_id
-      LOG_LEVEL              = var.environment == "prod" ? "info" : "debug"
+      BEDROCK_AGENT_ID                    = aws_bedrockagent_agent.main.agent_id
+      BEDROCK_AGENT_ALIAS_ID              = aws_bedrockagent_agent_alias.main.agent_alias_id
+      LOG_LEVEL                           = var.environment == "prod" ? "info" : "debug"
       AWS_NODEJS_CONNECTION_REUSE_ENABLED = "1"
     }
   }
 
-  tags = local.common_tags
-
   depends_on = [
-    aws_cloudwatch_log_group.handler,
+    aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.handler_lambda,
   ]
 }
@@ -36,7 +34,7 @@ resource "aws_lambda_function" "actions" {
   function_name = "${local.name_prefix}-actions"
   description   = "Bedrock Agent action group executor for Strands Agents"
 
-  runtime       = "nodejs22.x"
+  runtime       = "nodejs24.x"
   architectures = ["arm64"]
   handler       = "index.handler"
   memory_size   = 256
@@ -49,15 +47,13 @@ resource "aws_lambda_function" "actions" {
 
   environment {
     variables = {
-      LOG_LEVEL = var.environment == "prod" ? "info" : "debug"
+      LOG_LEVEL                           = var.environment == "prod" ? "info" : "debug"
       AWS_NODEJS_CONNECTION_REUSE_ENABLED = "1"
     }
   }
 
-  tags = local.common_tags
-
   depends_on = [
-    aws_cloudwatch_log_group.actions,
+    aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.actions_lambda,
   ]
 }

@@ -32,7 +32,7 @@ Bun-based monorepo for a streaming chat assistant using AWS Bedrock Agents with 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────┐
 │  React + Vite   │     │  API Gateway    │     │     Bedrock Agent       │
-│  SPA Frontend   │────▶│  HTTP API v2    │────▶│     (Claude Haiku)      │
+│  SPA Frontend   │────▶│  HTTP API v2    │────▶│    (Amazon Nova Micro)  │
 │                 │◀────│  (SSE Stream)   │◀────│                         │
 └─────────────────┘     └─────────────────┘     └───────────┬─────────────┘
                                                             │
@@ -76,7 +76,7 @@ Bun-based monorepo for a streaming chat assistant using AWS Bedrock Agents with 
 - **SSE over WebSocket** - Simpler implementation for one-way streaming
 - **Parameter Store** - Cost-effective secrets management (free tier)
 - **ARM64 Lambda** - 20% cost reduction
-- **Claude 3 Haiku** - Cost-optimized model for chat assistant
+- **Amazon Nova Micro** - Most cost-effective model ($0.035/1M input tokens)
 - **React + Vite SPA** - Fast development and production builds
 
 ## Code Conventions
@@ -221,11 +221,11 @@ Output is in `dist/` directory, ready for static hosting (Vercel, Netlify, S3, e
 
 ## Cost Estimation
 
-Monthly cost for 1000 messages/day (~$25/month):
+Monthly cost for 1000 messages/day (~$12/month):
 - API Gateway HTTP API: ~$1
 - Lambda Handler (512MB × 10s): ~$5
 - Lambda Actions (256MB × 2s): ~$2
-- Bedrock Claude Haiku: ~$15
+- Bedrock Amazon Nova Micro: ~$2
 - CloudWatch Logs: ~$2
 
 Budget alert configured at $20/month (80% threshold).

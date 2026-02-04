@@ -1,19 +1,11 @@
+# =============================================================================
 # Handler Lambda IAM Role
+# =============================================================================
+
 resource "aws_iam_role" "handler_lambda" {
-  name = "${local.name_prefix}-handler-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = local.common_tags
+  name               = "${local.name_prefix}-handler-role"
+  description        = "IAM role for Handler Lambda to invoke Bedrock Agent and write logs"
+  assume_role_policy = local.assume_role_policies.lambda
 }
 
 resource "aws_iam_role_policy" "handler_lambda" {
@@ -24,15 +16,17 @@ resource "aws_iam_role_policy" "handler_lambda" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "CloudWatchLogs"
         Effect = "Allow"
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "${aws_cloudwatch_log_group.handler.arn}:*"
+        Resource = "${aws_cloudwatch_log_group.lambda["handler"].arn}:*"
       },
       {
+        Sid    = "BedrockAgentInvoke"
         Effect = "Allow"
         Action = [
           "bedrock:InvokeAgent"
@@ -43,22 +37,14 @@ resource "aws_iam_role_policy" "handler_lambda" {
   })
 }
 
+# =============================================================================
 # Actions Lambda IAM Role
+# =============================================================================
+
 resource "aws_iam_role" "actions_lambda" {
-  name = "${local.name_prefix}-actions-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = local.common_tags
+  name               = "${local.name_prefix}-actions-role"
+  description        = "IAM role for Actions Lambda to execute tools and access Parameter Store"
+  assume_role_policy = local.assume_role_policies.lambda
 }
 
 resource "aws_iam_role_policy" "actions_lambda" {
@@ -69,15 +55,17 @@ resource "aws_iam_role_policy" "actions_lambda" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "CloudWatchLogs"
         Effect = "Allow"
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "${aws_cloudwatch_log_group.actions.arn}:*"
+        Resource = "${aws_cloudwatch_log_group.lambda["actions"].arn}:*"
       },
       {
+        Sid    = "ParameterStoreAccess"
         Effect = "Allow"
         Action = [
           "ssm:GetParameter"
@@ -88,27 +76,14 @@ resource "aws_iam_role_policy" "actions_lambda" {
   })
 }
 
+# =============================================================================
 # Bedrock Agent IAM Role
+# =============================================================================
+
 resource "aws_iam_role" "bedrock_agent" {
-  name = "${local.name_prefix}-bedrock-agent-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "bedrock.amazonaws.com"
-      }
-      Condition = {
-        StringEquals = {
-          "aws:SourceAccount" = data.aws_caller_identity.current.account_id
-        }
-      }
-    }]
-  })
-
-  tags = local.common_tags
+  name               = "${local.name_prefix}-bedrock-agent-role"
+  description        = "IAM role for Bedrock Agent to invoke foundation model and Lambda functions"
+  assume_role_policy = local.assume_role_policies.bedrock
 }
 
 resource "aws_iam_role_policy" "bedrock_agent" {
@@ -119,13 +94,15 @@ resource "aws_iam_role_policy" "bedrock_agent" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "BedrockModelInvoke"
         Effect = "Allow"
         Action = [
           "bedrock:InvokeModel"
         ]
-        Resource = "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+        Resource = local.foundation_model_arn
       },
       {
+        Sid    = "LambdaInvoke"
         Effect = "Allow"
         Action = [
           "lambda:InvokeFunction"
@@ -136,7 +113,11 @@ resource "aws_iam_role_policy" "bedrock_agent" {
   })
 }
 
-# Lambda permission for Bedrock Agent to invoke Actions Lambda
+# =============================================================================
+# Lambda Permissions
+# =============================================================================
+
+# Allow Bedrock Agent to invoke Actions Lambda
 resource "aws_lambda_permission" "bedrock_agent" {
   statement_id  = "AllowBedrockAgentInvoke"
   action        = "lambda:InvokeFunction"

@@ -6,6 +6,4 @@ resource "aws_ssm_parameter" "websearch_api_key" {
   description = "API key for web search service (Tavily, etc.)"
   type        = "SecureString"
   value       = var.websearch_api_key
-
-  tags = local.common_tags
 }
