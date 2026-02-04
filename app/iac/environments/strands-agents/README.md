@@ -173,6 +173,7 @@ bun run dev
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `aws_region` | AWS region | `ap-northeast-1` |
+| `foundation_model` | Bedrock model/inference profile ID | `apac.amazon.nova-micro-v1:0` |
 | `allowed_origins` | CORS allowed origins | `["*"]` |
 | `alert_email` | Email for budget alerts | `""` (disabled) |
 | `websearch_api_key` | Tavily API key | `""` (disabled) |
@@ -270,6 +271,15 @@ Using **Amazon Nova Micro** for optimal cost-performance:
 - Input: $0.035/1M tokens
 - Output: $0.14/1M tokens
 - ~85% cheaper than Claude 3 Haiku
+
+> **Note**: Nova models require inference profile IDs for on-demand throughput.
+> Use region-specific profiles: `apac.amazon.nova-micro-v1:0`, `us.amazon.nova-micro-v1:0`, or `eu.amazon.nova-micro-v1:0`.
+
+To switch models, edit `terraform.tfvars`:
+```hcl
+# Use Claude 3 Haiku instead
+foundation_model = "anthropic.claude-3-haiku-20240307-v1:0"
+```
 
 ## Monitoring
 

@@ -48,6 +48,14 @@ Minimum set for this repo:
   - Purpose: Perform a code review focused on bugs, regressions, and test gaps.
   - Best practices: Use `.claude/rules/testing.md` for coverage expectations and `.claude/rules/security.md` for sensitive data checks.
 
+- `/aws-investigate`
+  - Purpose: AWS障害の調査を行い、調査レポートを `docs/aws/investigate/` に出力する。
+  - Best practices: `.claude/rules/aws-investigation.md` の調査手順に従う。CloudWatch Logs Insightsクエリを活用。
+
+- `/aws-logs`
+  - Purpose: AWS CloudWatch Logsをクイック表示する。
+  - Best practices: Handler/Actions Lambda、API Gatewayのログを効率的に確認。
+
 ## Best Practices for Command Docs
 
 - Declare the purpose in one or two sentences near the top.

@@ -27,6 +27,11 @@ resource "aws_bedrockagent_agent" "main" {
 resource "aws_bedrockagent_agent_alias" "main" {
   agent_id         = aws_bedrockagent_agent.main.agent_id
   agent_alias_name = var.environment
+
+  # Force recreate when agent configuration changes
+  lifecycle {
+    replace_triggered_by = [aws_bedrockagent_agent.main]
+  }
 }
 
 # Action Group: Calculator

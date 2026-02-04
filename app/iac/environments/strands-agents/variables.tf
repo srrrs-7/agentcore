@@ -34,3 +34,9 @@ variable "websearch_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "foundation_model" {
+  description = "Bedrock foundation model or inference profile ID"
+  type        = string
+  default     = "apac.amazon.nova-micro-v1:0"
+}

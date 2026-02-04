@@ -3,6 +3,7 @@ module "strands_agents" {
 
   environment        = var.environment
   aws_region         = var.aws_region
+  foundation_model   = var.foundation_model
   allowed_origins    = var.allowed_origins
   log_retention_days = 7
   budget_limit_usd   = 20

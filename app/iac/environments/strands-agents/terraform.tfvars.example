@@ -4,6 +4,15 @@ environment = "dev"
 # AWS Configuration
 aws_region = "ap-northeast-1"
 
+# Bedrock Model Configuration
+# Use inference profile ID for Nova models (required for on-demand throughput)
+# Options:
+#   - "apac.amazon.nova-micro-v1:0"  (APAC regions including ap-northeast-1)
+#   - "us.amazon.nova-micro-v1:0"    (US regions)
+#   - "eu.amazon.nova-micro-v1:0"    (EU regions)
+#   - "anthropic.claude-3-haiku-20240307-v1:0" (direct model ID)
+foundation_model = "apac.amazon.nova-micro-v1:0"
+
 # CORS Configuration
 # Set to specific origins in production (e.g., ["https://your-app.com"])
 allowed_origins = ["*"]

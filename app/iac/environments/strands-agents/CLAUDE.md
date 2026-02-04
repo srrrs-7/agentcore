@@ -73,6 +73,7 @@ strands-agents/
 |----------|------|---------|-------------|
 | `environment` | string | `"dev"` | Environment name for naming/tagging |
 | `aws_region` | string | `"ap-northeast-1"` | AWS region |
+| `foundation_model` | string | `"apac.amazon.nova-micro-v1:0"` | Bedrock model/inference profile ID |
 | `allowed_origins` | list(string) | `["*"]` | CORS allowed origins |
 | `alert_email` | string | `""` | Email for budget/error alerts |
 | `websearch_api_key` | string | `""` | Tavily API key (sensitive) |
@@ -101,6 +102,30 @@ Then apply:
 ```bash
 terraform apply
 ```
+
+### Change Bedrock Model
+
+Edit `terraform.tfvars`:
+```hcl
+# APAC regions (ap-northeast-1, etc.)
+foundation_model = "apac.amazon.nova-micro-v1:0"
+
+# US regions
+foundation_model = "us.amazon.nova-micro-v1:0"
+
+# EU regions
+foundation_model = "eu.amazon.nova-micro-v1:0"
+
+# Claude 3 Haiku (direct model ID, no inference profile needed)
+foundation_model = "anthropic.claude-3-haiku-20240307-v1:0"
+```
+
+Then apply:
+```bash
+terraform apply
+```
+
+> **Note**: Amazon Nova models require inference profile IDs (e.g., `apac.amazon.nova-micro-v1:0`) instead of direct model IDs for on-demand throughput.
 
 ### Enable Web Search
 

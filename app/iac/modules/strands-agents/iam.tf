@@ -31,7 +31,7 @@ resource "aws_iam_role_policy" "handler_lambda" {
         Action = [
           "bedrock:InvokeAgent"
         ]
-        Resource = "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:agent-alias/${aws_bedrockagent_agent.main.agent_id}/*"
+        Resource = aws_bedrockagent_agent_alias.main.agent_alias_arn
       }
     ]
   })
@@ -92,24 +92,39 @@ resource "aws_iam_role_policy" "bedrock_agent" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "BedrockModelInvoke"
-        Effect = "Allow"
-        Action = [
-          "bedrock:InvokeModel"
-        ]
-        Resource = local.foundation_model_arn
-      },
-      {
-        Sid    = "LambdaInvoke"
-        Effect = "Allow"
-        Action = [
-          "lambda:InvokeFunction"
-        ]
-        Resource = aws_lambda_function.actions.arn
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Sid    = "BedrockInferenceProfileAccess"
+          Effect = "Allow"
+          Action = [
+            "bedrock:InvokeModel",
+            "bedrock:InvokeModelWithResponseStream"
+          ]
+          Resource = local.foundation_model_arn
+        },
+        {
+          Sid    = "LambdaInvoke"
+          Effect = "Allow"
+          Action = [
+            "lambda:InvokeFunction"
+          ]
+          Resource = aws_lambda_function.actions.arn
+        }
+      ],
+      # Cross-region inference requires access to foundation models in ALL destination regions
+      local.is_inference_profile ? [
+        {
+          Sid    = "BedrockCrossRegionModelAccess"
+          Effect = "Allow"
+          Action = [
+            "bedrock:InvokeModel",
+            "bedrock:InvokeModelWithResponseStream"
+          ]
+          Resource = local.cross_region_model_arns
+        }
+      ] : []
+    )
   })
 }
 

@@ -12,6 +12,7 @@ Project conventions based on Google best practices and industry standards. Prefe
 | `design-guide.md` | Material Design | Visual hierarchy, accessibility (WCAG 2.1), responsive patterns |
 | `github-pr.md` | PR Best Practices | Branch naming, commit conventions, PR requirements |
 | `security.md` | OWASP | Input validation, auth, secrets management |
+| `aws-investigation.md` | AWS Best Practices | CloudWatch Logs, Lambda debugging, 調査レポート出力 |
 
 ## Architecture Snapshot
 

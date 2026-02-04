@@ -14,6 +14,9 @@ bun run check
 # Run all workspace tests
 bun run test:run
 
+# Run single test file
+bun test app/api/strands-agents-actions/src/actions/calculator.test.ts
+
 # Format code
 bun run format
 
@@ -23,6 +26,10 @@ cd app/api/strands-agents-actions && bun run build
 
 # Start frontend dev server
 cd app/ui/strands-agents && bun run dev
+
+# Deploy Lambda functions (after build)
+cd app/api/strands-agents-handler/dist && zip -r ../handler.zip . && \
+  aws lambda update-function-code --function-name strands-agents-dev-handler --zip-file fileb://../handler.zip
 ```
 
 ## Architecture Overview
@@ -139,11 +146,13 @@ Lambda functions use Bun's bundler:
 - **Format**: ESM (`--format=esm`)
 - **Target**: Node.js (`--target=node`)
 - **External**: `@aws-sdk/*` packages (provided by Lambda runtime)
-- **Output**: `dist/index.mjs`
+- **Output**: `dist/index.js` + `dist/package.json` (with `"type": "module"`)
 
 ```bash
-bun build src/index.ts --outdir=dist --target=node --format=esm --external '@aws-sdk/*'
+bun build src/index.ts --outdir=dist --target=node --format=esm --external '@aws-sdk/*' && echo '{"type":"module"}' > dist/package.json
 ```
+
+The `package.json` with `"type": "module"` is required for Lambda Node.js runtime to recognize ESM format.
 
 ## Infrastructure
 
@@ -229,3 +238,33 @@ Monthly cost for 1000 messages/day (~$12/month):
 - CloudWatch Logs: ~$2
 
 Budget alert configured at $20/month (80% threshold).
+
+## AWS Investigation
+
+When debugging Lambda errors or API issues, use the AWS investigation commands:
+
+```bash
+# View recent Lambda logs
+aws logs filter-log-events \
+  --log-group-name "/aws/lambda/strands-agents-dev-handler" \
+  --start-time $(($(date +%s) * 1000 - 3600000)) \
+  --filter-pattern "ERROR" \
+  --region ap-northeast-1
+
+# Real-time log monitoring
+aws logs tail "/aws/lambda/strands-agents-dev-handler" --follow --region ap-northeast-1
+```
+
+Investigation reports are output to `docs/aws/investigate/{YYYYMMDD}_{HHMM}_{title}.md`.
+
+See `.claude/rules/aws-investigation.md` for detailed investigation procedures.
+
+## Key Code Conventions
+
+- Use `dayjs` for all date/time handling (not native Date)
+- Use `unknown` over `any`, handle undefined explicitly
+- Use Zod for input validation at boundaries
+- Prefer early returns to reduce nesting
+- Run `bun run check` before committing
+
+See `.claude/rules/` for detailed coding standards, testing patterns, and security guidelines.

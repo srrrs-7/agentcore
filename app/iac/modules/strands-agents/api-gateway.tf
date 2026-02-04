@@ -21,7 +21,7 @@ resource "aws_apigatewayv2_integration" "handler" {
   integration_uri  = aws_lambda_function.handler.invoke_arn
 
   payload_format_version = "2.0"
-  timeout_milliseconds   = 120000 # 120 seconds for streaming
+  timeout_milliseconds   = 29000 # Max for HTTP API v2 (29s, leaving 1s buffer)
 }
 
 # POST /chat route

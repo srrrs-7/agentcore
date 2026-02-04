@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun build src/index.ts --outdir=dist --target=node --format=esm",
+    "build": "bun build src/index.ts --outdir=dist --target=node --format=esm && echo '{\"type\":\"module\"}' > dist/package.json",
     "check:type": "tsgo --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
