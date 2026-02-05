@@ -4,6 +4,11 @@ export interface Message {
   content: string;
   timestamp: Date;
   isStreaming?: boolean;
+  embedding?: {
+    modelId: string;
+    vector: number[];
+    inputTextTokenCount?: number;
+  };
 }
 
 export interface SSEChunkEvent {

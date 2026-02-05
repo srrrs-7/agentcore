@@ -7,12 +7,7 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
-import {
-  AGENT_ALIAS_ID,
-  AGENT_ID,
-  EMBEDDING_MODEL_ID,
-  REGION,
-} from "./config.js";
+import { AGENT_ID, REGION } from "./config.js";
 
 const agentClient = new BedrockAgentRuntimeClient({ region: REGION });
 const runtimeClient = new BedrockRuntimeClient({ region: REGION });
@@ -23,10 +18,11 @@ const textEncoder = new TextEncoder();
 export const invokeAgent = async (
   sessionId: string,
   inputText: string,
+  agentAliasId: string,
 ): Promise<InvokeAgentCommandOutput> => {
   const command = new InvokeAgentCommand({
     agentId: AGENT_ID,
-    agentAliasId: AGENT_ALIAS_ID,
+    agentAliasId,
     sessionId,
     inputText,
   });
@@ -36,11 +32,12 @@ export const invokeAgent = async (
 
 export const invokeEmbeddingModel = async (
   text: string,
+  modelId: string,
 ): Promise<{ embedding: number[]; inputTextTokenCount?: number }> => {
   const payload = JSON.stringify({ inputText: text });
 
   const command = new InvokeModelCommand({
-    modelId: EMBEDDING_MODEL_ID,
+    modelId,
     accept: "application/json",
     contentType: "application/json",
     body: textEncoder.encode(payload),

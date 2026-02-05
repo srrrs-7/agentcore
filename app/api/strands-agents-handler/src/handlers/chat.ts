@@ -12,13 +12,45 @@ import {
 } from "@packages/sse-utils";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { invokeAgent } from "../bedrock.js";
+import { AGENT_ALIAS_ID } from "../config.js";
 
 interface ChatRequest {
   message: string;
   sessionId?: string;
+  agentAliasId?: string;
 }
 
 const textDecoder = new TextDecoder();
+
+const resolveAgentAliasId = (requested?: string): string => {
+  const trimmed = validateNonEmptyString(requested);
+  if (!trimmed) {
+    return AGENT_ALIAS_ID;
+  }
+
+  const allowlistRaw = process.env.BEDROCK_AGENT_ALIAS_ALLOWLIST;
+  if (!allowlistRaw) {
+    if (trimmed !== AGENT_ALIAS_ID) {
+      throw new Error(
+        `Requested agentAliasId is not allowed: ${trimmed}. Configure BEDROCK_AGENT_ALIAS_ALLOWLIST to permit it.`,
+      );
+    }
+    return trimmed;
+  }
+
+  const allowlist = allowlistRaw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (!allowlist.includes(trimmed)) {
+    throw new Error(
+      `Requested agentAliasId is not allowed: ${trimmed}. Allowed: ${allowlist.join(", ")}`,
+    );
+  }
+
+  return trimmed;
+};
 
 const collectCompletionChunks = async (
   response: InvokeAgentCommandOutput,
@@ -70,20 +102,34 @@ export const handleChat = async (
     return createJsonResponse(400, { error: "Invalid JSON body" });
   }
 
-  const { message, sessionId = randomUUID() } = body;
+  const { message, sessionId = randomUUID(), agentAliasId } = body;
   const trimmedMessage = validateNonEmptyString(message);
   if (!trimmedMessage) {
     return createJsonResponse(400, { error: "Message is required" });
+  }
+
+  let resolvedAliasId = AGENT_ALIAS_ID;
+  try {
+    resolvedAliasId = resolveAgentAliasId(agentAliasId);
+  } catch (error) {
+    return createJsonResponse(400, {
+      error: error instanceof Error ? error.message : "Invalid agentAliasId",
+    });
   }
 
   logger.info({
     event: "chat_request",
     sessionId,
     messageLength: trimmedMessage.length,
+    agentAliasId: resolvedAliasId,
   });
 
   try {
-    const response = await invokeAgent(sessionId, trimmedMessage);
+    const response = await invokeAgent(
+      sessionId,
+      trimmedMessage,
+      resolvedAliasId,
+    );
 
     const { chunks, chunkCount, fullResponse } =
       await collectCompletionChunks(response);

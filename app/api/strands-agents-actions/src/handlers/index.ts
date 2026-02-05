@@ -6,6 +6,7 @@ import {
 } from "@packages/bedrock-agent-utils";
 import { handleCalculator } from "../actions/calculator.js";
 import { handleDateTime } from "../actions/datetime.js";
+import { handleEmbeddings } from "../actions/embeddings.js";
 import { handleWebSearch } from "../actions/websearch.js";
 
 export type ActionHandler = (event: BedrockAgentEvent) => Promise<unknown>;
@@ -26,5 +27,10 @@ export const handlersByActionGroup: Record<string, ActionHandler> = {
     handleWebSearch(event.apiPath, {
       query: getParameter(event, "query"),
       maxResults: parseIntParameter(event, "maxResults"),
+    }),
+  embeddings: async (event) =>
+    handleEmbeddings(event.apiPath, {
+      text: getParameter(event, "text"),
+      modelId: getParameter(event, "modelId"),
     }),
 };

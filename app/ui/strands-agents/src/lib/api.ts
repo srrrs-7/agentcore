@@ -79,6 +79,7 @@ export async function sendChatMessage(
   apiEndpoint: string,
   message: string,
   sessionId: string,
+  agentAliasId: string | undefined,
   callbacks: SendMessageCallbacks,
 ): Promise<void> {
   const response = await fetch(`${apiEndpoint}/chat`, {
@@ -89,6 +90,7 @@ export async function sendChatMessage(
     body: JSON.stringify({
       message,
       sessionId,
+      agentAliasId,
     }),
   });
 
@@ -129,13 +131,14 @@ export async function sendChatMessage(
 export async function getTextEmbedding(
   apiEndpoint: string,
   text: string,
+  modelId?: string,
 ): Promise<EmbeddingResponse> {
   const response = await fetch(`${apiEndpoint}/embeddings`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, modelId }),
   });
 
   if (!response.ok) {
@@ -149,5 +152,8 @@ export async function getTextEmbedding(
  * Generate a unique session ID
  */
 export function generateSessionId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `session-${crypto.randomUUID()}`;
+  }
   return `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }

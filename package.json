@@ -27,6 +27,9 @@
     "cspell": "^9.4.0",
     "husky": "^9.1.7"
   },
+  "overrides": {
+    "fast-xml-parser": "^5.3.4"
+  },
   "devDependencies": {
     "@bun-security-scanner/osv": "^1.0.0",
     "@typescript/native-preview": "^7.0.0-dev.20251226.1"

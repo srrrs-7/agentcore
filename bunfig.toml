@@ -1,5 +1,5 @@
 [install]
-# minimumReleaseAge = 1814400 # 21 days - disabled for now
+minimumReleaseAge = 21 # allow security patch overrides immediately
 
-# [install.security]
-# scanner = "@bun-security-scanner/osv"
+[install.security]
+scanner = "@bun-security-scanner/osv"
