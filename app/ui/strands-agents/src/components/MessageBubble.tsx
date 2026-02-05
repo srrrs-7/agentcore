@@ -124,8 +124,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     className="w-2 h-2 rounded-sm"
                     style={{
                       backgroundColor: `rgba(59,130,246,${(
-                        0.2 +
-                        value * 0.8
+                        0.2 + value * 0.8
                       ).toFixed(2)})`,
                     }}
                   />
