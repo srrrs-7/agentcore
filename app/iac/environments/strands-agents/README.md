@@ -174,6 +174,7 @@ bun run dev
 |----------|-------------|---------|
 | `aws_region` | AWS region | `ap-northeast-1` |
 | `foundation_model` | Bedrock model/inference profile ID | `apac.amazon.nova-micro-v1:0` |
+| `embedding_model_id` | Bedrock embedding model ID | `amazon.titan-embed-text-v2:0` |
 | `allowed_origins` | CORS allowed origins | `["*"]` |
 | `alert_email` | Email for budget alerts | `""` (disabled) |
 | `websearch_api_key` | Tavily API key | `""` (disabled) |
@@ -224,6 +225,26 @@ data: {"sessionId":"abc-123","totalChunks":2}
 ```
 event: error
 data: {"message":"Error description"}
+```
+
+### POST /embeddings
+
+Generate an embedding vector for input text.
+
+**Request:**
+```json
+{
+  "text": "Hello, embeddings!"
+}
+```
+
+**Response:**
+```json
+{
+  "modelId": "amazon.titan-embed-text-v2:0",
+  "embedding": [0.0123, -0.0456, 0.0789],
+  "inputTextTokenCount": 4
+}
 ```
 
 ## Action Groups

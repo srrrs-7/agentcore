@@ -11,7 +11,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-ssm": "^3.750.0",
+    "@packages/aws-config": "workspace:*",
+    "@packages/bedrock-agent-utils": "workspace:*",
     "@packages/logger": "workspace:*",
+    "@packages/request-utils": "workspace:*",
     "mathjs": "^13.0.0"
   },
   "devDependencies": {

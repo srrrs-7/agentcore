@@ -1,8 +1,10 @@
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { getAwsRegion } from "@packages/aws-config";
 import { logger } from "@packages/logger";
+import { validateNonEmptyString } from "@packages/request-utils";
 
 const ssmClient = new SSMClient({
-  region: process.env.AWS_REGION || "ap-northeast-1",
+  region: getAwsRegion(),
 });
 
 interface WebSearchParams {
@@ -53,9 +55,10 @@ export async function handleWebSearch(
     throw new Error(`Unknown websearch path: ${apiPath}`);
   }
 
-  const { query, maxResults = 5 } = params;
+  const { maxResults = 5 } = params;
+  const query = validateNonEmptyString(params.query);
 
-  if (!query || typeof query !== "string") {
+  if (!query) {
     throw new Error("query parameter is required");
   }
 

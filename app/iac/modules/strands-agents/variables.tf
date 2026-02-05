@@ -20,6 +20,12 @@ variable "foundation_model" {
   default     = "amazon.nova-micro-v1:0"
 }
 
+variable "embedding_model_id" {
+  description = "Bedrock embedding model ID (e.g., amazon.titan-embed-text-v2:0)"
+  type        = string
+  default     = "amazon.titan-embed-text-v2:0"
+}
+
 variable "allowed_origins" {
   description = "CORS allowed origins for API Gateway. Use specific origins in production."
   type        = list(string)

@@ -31,6 +31,13 @@ resource "aws_apigatewayv2_route" "chat" {
   target    = "integrations/${aws_apigatewayv2_integration.handler.id}"
 }
 
+# POST /embeddings route
+resource "aws_apigatewayv2_route" "embeddings" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /embeddings"
+  target    = "integrations/${aws_apigatewayv2_integration.handler.id}"
+}
+
 # Default stage with auto-deploy
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.main.id

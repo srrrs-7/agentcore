@@ -10,6 +10,12 @@ interface SendMessageCallbacks {
   onError: (data: SSEErrorEvent) => void;
 }
 
+export interface EmbeddingResponse {
+  modelId: string;
+  embedding: number[];
+  inputTextTokenCount?: number;
+}
+
 const parseSseEvent = (
   eventBlock: string,
 ): {
@@ -115,6 +121,28 @@ export async function sendChatMessage(
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * Request a text embedding from the API
+ */
+export async function getTextEmbedding(
+  apiEndpoint: string,
+  text: string,
+): Promise<EmbeddingResponse> {
+  const response = await fetch(`${apiEndpoint}/embeddings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return (await response.json()) as EmbeddingResponse;
 }
 
 /**

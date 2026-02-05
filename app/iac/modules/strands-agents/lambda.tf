@@ -18,6 +18,7 @@ resource "aws_lambda_function" "handler" {
     variables = {
       BEDROCK_AGENT_ID                    = aws_bedrockagent_agent.main.agent_id
       BEDROCK_AGENT_ALIAS_ID              = aws_bedrockagent_agent_alias.main.agent_alias_id
+      BEDROCK_EMBEDDING_MODEL_ID           = var.embedding_model_id
       LOG_LEVEL                           = var.environment == "prod" ? "info" : "debug"
       AWS_NODEJS_CONNECTION_REUSE_ENABLED = "1"
     }

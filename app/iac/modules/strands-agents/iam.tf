@@ -32,6 +32,17 @@ resource "aws_iam_role_policy" "handler_lambda" {
           "bedrock:InvokeAgent"
         ]
         Resource = aws_bedrockagent_agent_alias.main.agent_alias_arn
+      },
+      {
+        Sid    = "BedrockEmbeddingInvoke"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel"
+        ]
+        Resource = concat(
+          [local.embedding_model_arn],
+          local.embedding_cross_region_model_arns
+        )
       }
     ]
   })

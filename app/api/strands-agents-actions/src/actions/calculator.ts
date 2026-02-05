@@ -1,4 +1,5 @@
 import { logger } from "@packages/logger";
+import { validateNonEmptyString } from "@packages/request-utils";
 import { evaluate } from "mathjs";
 
 interface CalculateRequest {
@@ -21,9 +22,9 @@ export async function handleCalculator(
     throw new Error(`Unknown calculator path: ${apiPath}`);
   }
 
-  const expression = body?.expression;
+  const expression = validateNonEmptyString(body?.expression);
 
-  if (!expression || typeof expression !== "string") {
+  if (!expression) {
     throw new Error("Missing or invalid expression parameter");
   }
 

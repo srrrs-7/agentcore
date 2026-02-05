@@ -1,4 +1,5 @@
 import { logger } from "@packages/logger";
+import { validateNonEmptyString } from "@packages/request-utils";
 
 interface DateTimeParams {
   timezone?: string;
@@ -97,41 +98,44 @@ function convertTimezone(
   fromTimezone: string | undefined,
   toTimezone: string | undefined,
 ): ConvertTimezoneResponse {
-  if (!datetime) {
+  const validatedDatetime = validateNonEmptyString(datetime);
+  if (!validatedDatetime) {
     throw new Error("datetime parameter is required");
   }
-  if (!fromTimezone) {
+  const validatedFromTimezone = validateNonEmptyString(fromTimezone);
+  if (!validatedFromTimezone) {
     throw new Error("fromTimezone parameter is required");
   }
-  if (!toTimezone) {
+  const validatedToTimezone = validateNonEmptyString(toTimezone);
+  if (!validatedToTimezone) {
     throw new Error("toTimezone parameter is required");
   }
 
   logger.info({
     event: "datetime_convert",
-    datetime,
-    fromTimezone,
-    toTimezone,
+    datetime: validatedDatetime,
+    fromTimezone: validatedFromTimezone,
+    toTimezone: validatedToTimezone,
   });
 
   try {
     // Parse the input datetime
-    const date = new Date(datetime);
+    const date = new Date(validatedDatetime);
 
     if (Number.isNaN(date.getTime())) {
-      throw new Error(`Invalid datetime: ${datetime}`);
+      throw new Error(`Invalid datetime: ${validatedDatetime}`);
     }
 
     // Format in source timezone
     const originalFormatted = date.toLocaleString("en-US", {
-      timeZone: fromTimezone,
+      timeZone: validatedFromTimezone,
       dateStyle: "full",
       timeStyle: "long",
     });
 
     // Format in target timezone
     const convertedFormatted = date.toLocaleString("en-US", {
-      timeZone: toTimezone,
+      timeZone: validatedToTimezone,
       dateStyle: "full",
       timeStyle: "long",
     });
@@ -139,8 +143,8 @@ function convertTimezone(
     return {
       original: originalFormatted,
       converted: convertedFormatted,
-      fromTimezone,
-      toTimezone,
+      fromTimezone: validatedFromTimezone,
+      toTimezone: validatedToTimezone,
     };
   } catch (error) {
     const message =

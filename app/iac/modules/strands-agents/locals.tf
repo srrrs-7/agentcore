@@ -29,6 +29,20 @@ locals {
     "arn:aws:bedrock:${region}::foundation-model/${local.base_model_id}"
   ] : []
 
+  # Embedding model inference profile checks
+  embedding_is_inference_profile = can(regex("^(apac|us|eu)\\.", var.embedding_model_id))
+  embedding_base_model_id        = local.embedding_is_inference_profile ? replace(var.embedding_model_id, "/^(apac|us|eu)\\./", "") : var.embedding_model_id
+  embedding_inference_profile_geography = local.embedding_is_inference_profile ? regex("^(apac|us|eu)", var.embedding_model_id)[0] : null
+
+  # Embedding model ARN for IAM policies
+  embedding_model_arn = local.embedding_is_inference_profile ? "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.embedding_model_id}" : "arn:aws:bedrock:${var.aws_region}::foundation-model/${var.embedding_model_id}"
+
+  # Embedding model ARNs for cross-region inference profiles
+  embedding_cross_region_model_arns = local.embedding_is_inference_profile ? [
+    for region in local.inference_profile_regions[local.embedding_inference_profile_geography] :
+    "arn:aws:bedrock:${region}::foundation-model/${local.embedding_base_model_id}"
+  ] : []
+
   # Lambda function configurations for DRY patterns
   lambda_functions = {
     handler = {

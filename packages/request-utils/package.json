@@ -1,0 +1,18 @@
+{
+  "name": "@packages/request-utils",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "check:type": "tsgo --noEmit",
+    "test": "bun test --watch",
+    "clean": "echo 'No build artifacts to clean'",
+    "build": "echo 'No build step needed (TypeScript source directly used)'"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
